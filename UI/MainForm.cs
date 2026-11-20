@@ -116,12 +116,12 @@ public sealed class MainForm : Form
         editMenu.DropDownItems.Add(_deleteItem);
 
         var actionMenu = new ToolStripMenuItem("操作");
-        actionMenu.DropDownItems.Add(Item("新建书签", Keys.Control | Keys.Shift | Keys.N, (_, _) => CreateBookmark(), enabled: true));
-        actionMenu.DropDownItems.Add(Item("新建文件夹", Keys.Control | Keys.N, (_, _) => CreateFolder(), enabled: true));
+        actionMenu.DropDownItems.Add(Item("新建书签", Keys.F1, (_, _) => CreateBookmark(), enabled: true));
+        actionMenu.DropDownItems.Add(Item("新建文件夹", Keys.Shift | Keys.F1, (_, _) => CreateFolder(), enabled: true));
         actionMenu.DropDownItems.Add(new ToolStripSeparator());
-        _editBookmarkItem = Item("编辑", Keys.None, (_, _) => EditSelectedBookmark(), enabled: true);
+        _editBookmarkItem = Item("编辑", Keys.F2, (_, _) => EditOrRenameSelected(), enabled: true);
         actionMenu.DropDownItems.Add(_editBookmarkItem);
-        _renameItem = Item("重命名", Keys.F2, (_, _) => RenameSelected(), enabled: true);
+        _renameItem = Item("重命名", Keys.None, (_, _) => RenameSelected(), enabled: true);
         actionMenu.DropDownItems.Add(_renameItem);
         actionMenu.DropDownItems.Add(new ToolStripSeparator());
         _moveUpItem = Item("上移", Keys.None, (_, _) => MoveSelected(-1), enabled: true);
@@ -161,7 +161,7 @@ public sealed class MainForm : Form
     {
         MessageBox.Show(
             this,
-            "书签编辑器\n版本 1.0",
+            "书签编辑器\n版本 1.1",
             "关于",
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
@@ -365,6 +365,18 @@ public sealed class MainForm : Form
         }
 
         return data.Type == BookmarkNodeType.Folder ? data : data.Parent;
+    }
+
+    private void EditOrRenameSelected()
+    {
+        if (SelectedBookmark() != null)
+        {
+            EditSelectedBookmark();
+        }
+        else
+        {
+            RenameSelected();
+        }
     }
 
     private void EditSelectedBookmark()
@@ -744,8 +756,8 @@ public sealed class MainForm : Form
 
         if (data.Type == BookmarkNodeType.Folder)
         {
-            AddContextItem("新建书签", "Ctrl+Shift+N", CreateBookmark);
-            AddContextItem("新建文件夹", "Ctrl+N", CreateFolder);
+            AddContextItem("新建书签", "F1", CreateBookmark);
+            AddContextItem("新建文件夹", "Shift+F1", CreateFolder);
             _contextMenu.Items.Add(new ToolStripSeparator());
             AddContextItem("重命名", "F2", RenameSelected);
             AddContextItem("删除", "Delete", DeleteSelected);
@@ -763,8 +775,8 @@ public sealed class MainForm : Form
         else
         {
             AddContextItem("打开网址", null, () => OpenUrl(data.Url));
-            AddContextItem("编辑书签", null, EditSelectedBookmark);
-            AddContextItem("重命名", "F2", RenameSelected);
+            AddContextItem("编辑书签", "F2", EditSelectedBookmark);
+            AddContextItem("重命名", null, RenameSelected);
             AddContextItem("修改网址", null, ModifySelectedUrl);
             _contextMenu.Items.Add(new ToolStripSeparator());
             AddContextItem("删除", "Delete", DeleteSelected);
@@ -904,6 +916,14 @@ public sealed class MainForm : Form
 
     private void OnTreeKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.KeyCode == Keys.Left && e.Modifiers == Keys.None)
+        {
+            HandleLeftArrow();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            return;
+        }
+
         if (e.Shift && e.KeyCode == Keys.Up)
         {
             MoveSelected(-1);
@@ -941,6 +961,35 @@ public sealed class MainForm : Form
         {
             OpenUrl(data.Url);
         }
+    }
+
+    private void HandleLeftArrow()
+    {
+        var node = _tree.SelectedNode;
+        if (node is null)
+        {
+            return;
+        }
+
+        if (node.Nodes.Count > 0 && node.IsExpanded)
+        {
+            node.Collapse();
+            return;
+        }
+
+        var parent = node.Parent;
+        if (parent is null)
+        {
+            return;
+        }
+
+        _tree.SelectedNode = parent;
+        if (parent.IsExpanded)
+        {
+            parent.Collapse();
+        }
+
+        UpdateStatus();
     }
 
     private void OpenUrl(string url)
@@ -982,7 +1031,7 @@ public sealed class MainForm : Form
         _statusBar.SetTexts(selectionText, _document.IsDirty ? "已修改" : "未修改");
 
         var selected = _tree.SelectedNode?.Tag as BookmarkNode;
-        _editBookmarkItem.Enabled = selected?.Type == BookmarkNodeType.Bookmark;
+        _editBookmarkItem.Enabled = selected != null;
         _renameItem.Enabled = selected != null;
         _deleteItem.Enabled = selected != null;
         _cutItem.Enabled = selected != null;
